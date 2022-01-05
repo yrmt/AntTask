@@ -25,3 +25,6 @@ class AntTaskException(Exception):
         self.dialect_msg = dialect_msg
         self.log_msg = log_msg if log_msg else dialect_msg
         self.attach_data = attach_data
+
+    def __str__(self):
+        return f"AntTask {self.level} {self.dialect_msg}"

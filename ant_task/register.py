@@ -1,4 +1,6 @@
-from ant_task import Task, AntTaskException, Status
+from ant_task.task import Task
+from ant_task.exception import AntTaskException
+from ant_task.status import Status
 
 
 class Register(object):

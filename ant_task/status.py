@@ -1,11 +1,10 @@
 import datetime
-import os
+import logging
 
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.orm import declarative_base, Session
 
-from ant_task import AntTaskException, MainLog
-import logging
+from ant_task import AntTaskException
 
 
 class Status(object):
@@ -17,15 +16,21 @@ class Status(object):
 
     dag_name: str
     channel_name: str
+    log: logging.Logger
+    run_type: str
 
-    def set_name(self, dag_name, channel_name):
+    def set_some(self, dag_name, channel_name, log, run_type):
         """ dag启动前 会自动调用该方法设置dag_name 和channel_name
         :param dag_name:
         :param channel_name:
+        :param log:
+        :param run_type:
         :return:
         """
+        self.log = log
         self.dag_name = dag_name
         self.channel_name = channel_name
+        self.run_type = run_type
 
     def dag_init(self, dag):
         """
@@ -88,7 +93,7 @@ class TaskModule(Base):
 
 
 class DBStatus(Status):
-    status_name = "db"
+    status_name = "default_db"
     batch_key: str
 
     def __init__(self, session: Session, batch_key):
@@ -102,6 +107,7 @@ class DBStatus(Status):
             TaskModule.batch_key == self.batch_key
         ).all()
         if len(result) == 0:
+            self.log.debug(f"任务流初始化")
             tm_list = []
             for index, task_list in enumerate(dag.task_flower):
                 sort_no = index + 1
@@ -117,6 +123,7 @@ class DBStatus(Status):
             self.session.add_all(tm_list)
             self.session.commit()
         else:
+            self.log.debug(f"任务流已初始化")
             for index, task_list in enumerate(dag.task_flower):
                 sort_no = index + 1
                 sort_no_result = set([t.task_name for t in filter(lambda x: x.sort_no == sort_no, result)])
@@ -124,6 +131,9 @@ class DBStatus(Status):
                 diff_result = sort_no_result_local ^ sort_no_result
                 if len(diff_result) != 0:
                     raise AntTaskException(level=6, dialect_msg=f"本地任务与数据库任务不匹配:{diff_result}")
+
+    def dag_end(self):
+        self.log.info(f"任务流执行成功")
 
     def task_start(self, task_name):
         cur_status = self.session.query(TaskModule).filter(
@@ -139,10 +149,12 @@ class DBStatus(Status):
             cur_status.status = "run"
             cur_status.result_msg = None
             self.session.commit()
+            self.log.debug(f"任务{task_name} 开始以{self.run_type}方式执行")
             return self.RUN_NORMAL
         elif cur_status.status == "run":
             raise AntTaskException(level=3, dialect_msg=f"任务实例`{task_name}`已在执行中，dag将终止")
         elif cur_status.status == "success":
+            self.log.debug(f"任务{task_name} 成功跳过执行")
             return self.RUN_SKIP
         else:
             raise AntTaskException(level=6, dialect_msg=f"任务实例`{task_name}`启动失败: db状态未知`{cur_status.status}`")
@@ -160,92 +172,16 @@ class DBStatus(Status):
             raise AntTaskException(level=6, dialect_msg=f"任务实例`{task_name}`结束更新失败，db状态`{cur_status.status}` != `run`")
         if err:
             cur_status.status = 'error'
-            cur_status.end_date = datetime.datetime.now()
             if isinstance(err, AntTaskException):
-                cur_status.result_msg = str(err.dialect_msg)[:255]
+                if err.level in ("notice", "none"):
+                    cur_status.status = 'success'
+                cur_status.result_msg = str(err.dialect_msg)[:200]
+                self.log.error(f"任务{task_name} 执行失败 失败原因:{err.dialect_msg}")
             else:
-                cur_status.result_msg = str(err)[:255]
+                self.log.error(f"任务{task_name} 执行失败 未归类的异常")
+                self.log.exception(err)
+                cur_status.result_msg = str(err)[:200]
         else:
             cur_status.status = 'success'
+        cur_status.end_date = datetime.datetime.now()
         self.session.commit()
-
-
-class LogStatus(Status):
-    status_name = "log"
-    _log = None
-
-    def __init__(self, batch_key, project_name="AntTask", log_path=None, stream=False, log_level=logging.DEBUG):
-        self.batch_key = batch_key
-        self._mlog = MainLog(project_name)
-        self.log_path = log_path
-        self.stream = stream
-        self.log_level = log_level
-
-    def set_name(self, dag_name, channel_name):
-        super(LogStatus, self).set_name(dag_name, channel_name)
-        if self.log_path:
-            self._mlog.add_file_handler(
-                os.path.join(self.log_path, f"{dag_name}_{channel_name}_{self.batch_key}.log"),
-                log_level=self.log_level
-            )
-        if self.stream:
-            self._mlog.add_stream_handler(log_level=self.log_level)
-
-    @property
-    def log(self):
-        if not self._log:
-            self._log = self._mlog.get_log()
-        return self._log
-
-    def dag_init(self, dag):
-        self.log.info(f"dag_init")
-
-    def dag_start(self):
-        self.log.info(f"dag_start")
-
-    def dag_end(self):
-        self.log.info(f"dag_end")
-
-    def task_start(self, task_name):
-        self.log.info(f"{task_name} task_start")
-
-    def task_end(self, task_name, err):
-        self.log.info(f"{task_name} task_end")
-        if err:
-            if isinstance(err, AntTaskException):
-                self.log.error(str(err.log_msg))
-            else:
-                self.log.error(err)
-
-
-class LogDbStatus(LogStatus, DBStatus):
-    status_name = "log_db"
-
-    def __init__(self, session: Session, batch_key, project_name="AntTask", log_path=None, stream=False,
-                 log_level=logging.DEBUG):
-        super(LogDbStatus, self).__init__(batch_key, project_name, log_path, stream, log_level)
-        super(LogStatus, self).__init__(session, batch_key)
-
-    def dag_init(self, dag):
-        super(LogDbStatus, self).dag_init(dag)
-        return super(LogStatus, self).dag_init(dag)
-
-    def dag_start(self):
-        db_result = super(LogStatus, self).dag_start()
-        if db_result in (self.RUN_NORMAL, None):
-            super(LogDbStatus, self).dag_start()
-        return db_result
-
-    def dag_end(self):
-        super(LogDbStatus, self).dag_end()
-        return super(LogStatus, self).dag_end()
-
-    def task_start(self, task_name):
-        db_result = super(LogStatus, self).task_start(task_name)
-        if db_result in (self.RUN_NORMAL, None):
-            super(LogDbStatus, self).task_start(task_name)
-        return db_result
-
-    def task_end(self, task_name, err):
-        super(LogDbStatus, self).task_end(task_name, err)
-        return super(LogStatus, self).task_end(task_name, err)

@@ -57,7 +57,7 @@ if __name__ == '__main__':
     import uuid
 
     mlog = MainLog('AntTask')
-    mlog.add_file_handler("/Users/dingcun/log/AntTask/test.log")
+    mlog.add_file_handler("./log/test.log")
     mlog.add_stream_handler()
     log = mlog.get_log(group_dict={"task_id": str(uuid.uuid4())})
     log.debug("asdf1a")

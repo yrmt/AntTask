@@ -1,23 +1,31 @@
-from ant_task import AntTaskException
+import logging
+import os
+
+from ant_task.log import MainLog
+from ant_task.exception import AntTaskException
 
 
 class Task(object):
     """
         单个任务执行方法，环境配置
     """
-
-    RUN_TYPE_SINGLE = "single"
-    RUN_TYPE_THREAD = "thread"
-    RUN_TYPE_PROCESS = "process"
-
     env: dict
     run = None
-    run_type = None  # ("single", "thread", "process", None= "single")
     task_name = None
     channel_name = None
+    dag_name = None
     threading_pool_size = None
-    threading_chunk_size = None
-    process_chunk_size = None
+    chunk_size = None
+    _mlog = None
+    _log = None
+
+    def __init__(self, dag_name, channel_name,
+                 log_file: str = None, log_stream: bool = False, log_level=logging.DEBUG):
+        self.dag_name = dag_name
+        self.channel_name = channel_name
+        self.log_file = log_file
+        self.log_stream = log_stream
+        self.log_level = log_level
 
     def check_run_before(self):
         """ 批前检查 """
@@ -37,3 +45,15 @@ class Task(object):
         except Exception as e:
             print(f"{self.task_name}异常, 参数:{args},{kwargs}, {e}")
             raise e
+
+    def get_log(self, group_dict: dict = None):
+        if not self._mlog:
+            self._mlog = MainLog("AntTask.task")
+            if self.log_stream:
+                self._mlog.add_stream_handler(self.log_level)
+            if self.log_file:
+                self._mlog.add_file_handler(
+                    os.path.join(self.log_file, f"{self.dag_name}-{self.channel_name}.log"), self.log_level)
+        if not self._log:
+            self._log = self._mlog.get_log(group_dict)
+        return self._log

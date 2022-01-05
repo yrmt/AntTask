@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+service AntRpcServer {
+ rpc run (AntRequest) returns (AntResponse){}
+}
+
+message AntRequest {
+  string func = 1;
+  string request_data = 2;
+  string token = 3;
+  string channel_name = 4;
+  string dag_name = 5;
+}
+
+message AntResponse {
+  string code = 1;
+  string msg = 2;
+  string response_data = 3;
+}

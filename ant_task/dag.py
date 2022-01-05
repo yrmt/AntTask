@@ -1,9 +1,15 @@
-from ant_task import AntTaskException, Register, Status
+import json
+
+from ant_task.exception import AntTaskException
+from ant_task.register import Register
+from ant_task.status import Status
 
 
 class Dag(object):
+    RUN_TYPES = ("single", "thread", "process", "rpc")
     dag_name: str
     channel_name: str
+    run_type = None  # ("single", "thread", "process", None= "single")
     task_flower = []
     status: Status
 
@@ -11,9 +17,14 @@ class Dag(object):
         self._register = register
         if isinstance(dag_config, dict):
             self.load_py(py_dict=dag_config)
+        else:
+            self.load_json(json_path=dag_config)
 
     def load_json(self, json_path):
-        pass
+        with open(json_path, 'r') as f:
+            data = f.read()
+            py_dict = json.loads(data)
+            self.load_py(py_dict)
 
     def load_py(self, py_dict: dict):
         if "channel_name" not in py_dict.keys() or py_dict.get("channel_name", "") == "":
@@ -29,6 +40,13 @@ class Dag(object):
                 raise AntTaskException(level=6, dialect_msg=f"状态控制器`{py_dict.get('status')}`未注册")
             else:
                 self.status = self._register.status_node.get(py_dict.get("status"))
+        if "run_type" not in py_dict.keys() or py_dict.get("run_type", "") == "":
+            self.run_type = "single"
+        elif py_dict.get("run_type") not in self.RUN_TYPES:
+            raise AntTaskException(level=6, dialect_msg=f"运行模式`{py_dict.get('run_type')}`无效")
+        else:
+            self.run_type = py_dict.get("run_type")
+
         if "task" not in py_dict.keys() or py_dict.get("task", "") == "":
             raise AntTaskException(level=6, dialect_msg=f"任务配置不能为空")
         if not isinstance(py_dict.get("task"), list):
