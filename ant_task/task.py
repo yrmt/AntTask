@@ -46,12 +46,15 @@ class Task(object):
         """
         return None
 
-    def __call__(self, request_data):
+    def __call__(self, request_data=None):
         if self.run is None:
             raise NotImplementedError
         try:
             if request_data:
-                return self.run(**json.loads(request_data))
+                if isinstance(request_data, str):
+                    return self.run(**json.loads(request_data))
+                else:
+                    return self.run(**request_data)
             else:
                 return self.run()
         except AntTaskException as ae:

@@ -1,7 +1,7 @@
 {
   "dag_name": "测试dag",
   "channel_name": "测试渠道",
-  "run_type": "process",
+  "run_type": "single",
   "status": "default_db",
   "task": [
     "test_01",
