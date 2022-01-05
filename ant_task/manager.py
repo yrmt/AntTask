@@ -61,13 +61,16 @@ class TaskManger(object):
                 if task_run_status == dag.status.RUN_NORMAL or task_run_status is None:
                     t_result = self.task_runner(task, dag.run_type, dag.dag_name, dag.channel_name)
                     results[task.task_name] = t_result
+            is_down = False
             for name, result in results.items():
                 try:
                     result.get()
                     dag.status.task_end(name, None)
                 except Exception as e:
                     dag.status.task_end(name, e)
-                    return
+                    is_down = True
+            if is_down:
+                return
         dag.status.dag_end()
 
     def __init__(

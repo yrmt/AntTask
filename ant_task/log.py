@@ -1,5 +1,17 @@
 import logging
 import os
+import threading
+
+
+class SingletonType(type):
+    _instance_lock = threading.Lock()
+
+    def __call__(cls, *args, **kwargs):
+        if not hasattr(cls, "_instance"):
+            with SingletonType._instance_lock:
+                if not hasattr(cls, "_instance"):
+                    cls._instance = super(SingletonType, cls).__call__(*args, **kwargs)
+        return cls._instance
 
 
 class CustomAdapter(logging.LoggerAdapter):
@@ -8,18 +20,12 @@ class CustomAdapter(logging.LoggerAdapter):
         return f"{add_kw} {msg}", kwargs
 
 
-class MainLog(object):
-    __instance = {}
+class MainLog(metaclass=SingletonType):
     formatter = logging.Formatter(
         '[%(levelname)s][%(asctime)s]%(message)s',
         # '[%(levelname)s][%(asctime)s][%(filename)s:%(lineno)s]%(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
-
-    def __new__(cls, *args, **kwargs):
-        if f"{args[0]}" not in MainLog.__instance.keys():
-            MainLog.__instance[f"{args[0]}"] = object.__new__(cls)
-        return MainLog.__instance[f"{args[0]}"]
 
     def __init__(self, project_name):
         self.root_logger = logging.getLogger(f"{project_name}")
@@ -30,6 +36,7 @@ class MainLog(object):
         """
         :return:
         """
+        log_path = os.path.abspath(log_path)
         if len(list(filter(
                 lambda x: x.__class__ == logging.FileHandler and x.baseFilename == log_path,
                 self.root_logger.handlers

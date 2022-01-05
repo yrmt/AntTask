@@ -1,6 +1,6 @@
 import argparse
 import json
-import time
+import os
 import uuid
 from concurrent import futures
 
@@ -8,6 +8,7 @@ import aioredis
 import grpc
 import redis
 
+from ant_task import MainLog
 from ant_task.etcd2grpc import ant_pb2, ant_pb2_grpc, etcd
 from ant_task.exception import AntTaskException, ERROR_LEVEL_DICT_RE
 from ant_task.utils import get_server_port, get_server_ip
@@ -88,12 +89,19 @@ class RpcEtcdServer(object):
 async def run_rpc_server(
         task_node,
         log_file,
+        log_stream=True,
         service_port=8000,
         max_workers=None,
         redis_url="redis://127.0.0.1",
         etcd_url="127.0.0.1:2379",
         etcd_key='/AntTask/grpc'
 ):
+    mlog = MainLog("AntTask.task")
+    if log_stream:
+        mlog.add_stream_handler()
+    if log_file:
+        mlog.add_file_handler(os.path.join(log_file, "server.log"))
+    log = mlog.get_log()
     # 获取服务url
     service_port = get_server_port(service_port)
     server_url = f"{get_server_ip()}:{get_server_port(service_port)}"
@@ -110,7 +118,7 @@ async def run_rpc_server(
             redis_pool=redis_client,
             etcd_host=etcd_host, etcd_port=etcd_port, etcd_key=etcd_key
     ) as rs:
-        print(f'service {server_url} start...')
+        log.info(f"{server_url} starting...")
         pool = futures.ThreadPoolExecutor(max_workers=max_workers)
         grpc_server = grpc.server(pool)
         await rs.set_token(pool._max_workers)
@@ -119,11 +127,13 @@ async def run_rpc_server(
         grpc_server.add_insecure_port(f'[::]:{service_port}')
         grpc_server.start()
         rs.start()
-        print("serveice started")
+        log.info(f"{server_url} started...")
         try:
             grpc_server.wait_for_termination()
         except KeyboardInterrupt:
+            log.info(f"{server_url} stopping...")
             grpc_server.stop(0)
+    log.info(f"{server_url} stopped...")
 
 
 def parse_args():
