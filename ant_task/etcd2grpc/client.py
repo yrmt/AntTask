@@ -54,10 +54,10 @@ class RpcClient(etcd.Etcd):
             raise AntTaskException(level=6, dialect_msg=f"etcd获取数据类型异常`{type(server_list)}`")
         self.server_list = server_list
 
-    async def run(self, channel_name, dag_name, task_name, request_datas):
+    async def run(self, task_str, request_datas):
         chunksize = self.chunksize
         if not isinstance(request_datas, Iterable):
-            result = await self.grpc_runner(channel_name, dag_name, task_name, request_datas)
+            result = await self.grpc_runner(task_str, None)
             return [result]
         if not chunksize:
             server_list = self.get_all_server(self.etcd_key)
@@ -72,24 +72,34 @@ class RpcClient(etcd.Etcd):
         for i in range(batch_count):
             task_list = []
             for request_data in request_datas[i * chunksize:(i + 1) * chunksize]:
-                task_list.append(asyncio.create_task(self.grpc_runner(channel_name, dag_name, task_name, request_data)))
+                task_list.append(asyncio.create_task(self.grpc_runner(task_str, request_data)))
             result_i = await asyncio.gather(*task_list)
             result.extend(result_i)
         return result
 
-    async def grpc_runner(self, channel_name, dag_name, task_name, request_data):
+    async def grpc_runner(self, task_str, request_data):
         server_url, token = await self.get_one_server()
-        self.log.debug(f"[{server_url}|{token}|{task_name}] rpc_start")
-        async with grpc.aio.insecure_channel(server_url) as channel:
-            stub = ant_pb2_grpc.AntRpcServerStub(channel)
-            response = await stub.run(
-                ant_pb2.AntRequest(
-                    channel_name=channel_name, dag_name=dag_name,
-                    func=task_name, token=token,
-                    request_data=json.dumps(request_data),
-                ))
-            self.log.debug(f"[{server_url}|{token}|{task_name}] rpc_end:code={response.code},msg={response.msg}")
-            return json.loads(response.response_data)
+        self.log.debug(f"[{server_url}|{token}|rpc|start] {task_str}")
+        try:
+            async with grpc.aio.insecure_channel(server_url) as channel:
+                stub = ant_pb2_grpc.AntRpcServerStub(channel)
+                response = await stub.run(
+                    ant_pb2.AntRequest(
+                        task=task_str, token=token,
+                        request_data=json.dumps(request_data) if request_data else None
+                    ))
+                if response.code > "2":
+                    self.log.error(f"[{server_url}|{token}|rpc|end] rpc_end:code={response.code},msg={response.msg}")
+                    raise AntTaskException(
+                        level=int(response.code), dialect_msg=response.msg, attach_data=response.response_data)
+                elif response.code == "2":
+                    self.log.info(f"[{server_url}|{token}|rpc|end] rpc_end:code={response.code},msg={response.msg}")
+                else:
+                    self.log.debug(f"[{server_url}|{token}|rpc|end] rpc_end:code={response.code},msg={response.msg}")
+                return json.loads(response.response_data) if response.response_data else None
+        except Exception as e:
+            self.log.exception(e)
+            raise e
 
 
 def run_rpc(task: Task, request_datas):
@@ -99,9 +109,8 @@ def run_rpc(task: Task, request_datas):
             chunksize=None, log=task.get_log(),
             etcd_key='/AntTask/grpc', etcd_host="127.0.0.1", etcd_port=2379,
     ) as ec:
-        run = ec.run(task.channel_name, task.dag_name, task.task_name, request_datas)
+        run = ec.run(task.dump(), request_datas)
         if loop.is_running():
             loop.create_task(run)
         else:
             loop.run_until_complete(run)
-        raise Exception("eeee")

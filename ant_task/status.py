@@ -70,6 +70,9 @@ class Status(object):
         """
         pass
 
+    def key(self):
+        return None
+
 
 Base = declarative_base()
 
@@ -99,6 +102,9 @@ class DBStatus(Status):
     def __init__(self, session: Session, batch_key):
         self.session = session
         self.batch_key = batch_key
+
+    def key(self):
+        return str(self.batch_key)
 
     def dag_init(self, dag):
         result = self.session.query(TaskModule).filter(
@@ -130,7 +136,7 @@ class DBStatus(Status):
                 sort_no_result_local = set([t.task_name for t in task_list])
                 diff_result = sort_no_result_local ^ sort_no_result
                 if len(diff_result) != 0:
-                    raise AntTaskException(level=6, dialect_msg=f"本地任务与数据库任务不匹配:{diff_result}")
+                    raise AntTaskException(level=6, dialect_msg=f"{self.batch_key}本地任务与数据库任务不匹配:{diff_result}")
 
     def dag_end(self):
         self.log.info(f"任务流执行成功")
@@ -143,7 +149,7 @@ class DBStatus(Status):
             TaskModule.task_name == task_name
         ).first()
         if not cur_status:
-            raise AntTaskException(level=6, dialect_msg=f"任务实例`{task_name}`启动更新失败: db无查询结果")
+            raise AntTaskException(level=6, dialect_msg=f"{self.batch_key}任务实例`{task_name}`启动更新失败: db无查询结果")
         if cur_status.status in ("init", "error"):
             cur_status.start_date = datetime.datetime.now()
             cur_status.status = "run"
@@ -152,12 +158,14 @@ class DBStatus(Status):
             self.log.debug(f"任务{task_name} 开始以{self.run_type}方式执行")
             return self.RUN_NORMAL
         elif cur_status.status == "run":
-            raise AntTaskException(level=3, dialect_msg=f"任务实例`{task_name}`已在执行中，dag将终止")
+            raise AntTaskException(level=3, dialect_msg=f"{self.batch_key}任务实例`{task_name}`已在执行中，dag将终止")
         elif cur_status.status == "success":
             self.log.debug(f"任务{task_name} 成功跳过执行")
             return self.RUN_SKIP
         else:
-            raise AntTaskException(level=6, dialect_msg=f"任务实例`{task_name}`启动失败: db状态未知`{cur_status.status}`")
+            raise AntTaskException(
+                level=6,
+                dialect_msg=f"{self.batch_key}任务实例`{task_name}`启动失败: db状态未知`{cur_status.status}`")
 
     def task_end(self, task_name, err):
         cur_status = self.session.query(TaskModule).filter(
@@ -167,9 +175,11 @@ class DBStatus(Status):
             TaskModule.task_name == task_name
         ).first()
         if not cur_status:
-            raise AntTaskException(level=6, dialect_msg=f"任务实例`{task_name}`结束更新失败: db无查询结果")
+            raise AntTaskException(level=6, dialect_msg=f"{self.batch_key}任务实例`{task_name}`结束更新失败: db无查询结果")
         if cur_status.status != "run":
-            raise AntTaskException(level=6, dialect_msg=f"任务实例`{task_name}`结束更新失败，db状态`{cur_status.status}` != `run`")
+            raise AntTaskException(
+                level=6,
+                dialect_msg=f"{self.batch_key}任务实例`{task_name}`结束更新失败，db状态`{cur_status.status}` != `run`")
         if err:
             cur_status.status = 'error'
             if isinstance(err, AntTaskException):
@@ -182,6 +192,7 @@ class DBStatus(Status):
                 self.log.exception(err)
                 cur_status.result_msg = str(err)[:200]
         else:
+            self.log.info(f"任务{task_name} 执行成功")
             cur_status.status = 'success'
         cur_status.end_date = datetime.datetime.now()
         self.session.commit()

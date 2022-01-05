@@ -11,7 +11,8 @@ class CustomAdapter(logging.LoggerAdapter):
 class MainLog(object):
     __instance = {}
     formatter = logging.Formatter(
-        '[%(levelname)s][%(asctime)s][%(filename)s:%(lineno)s]%(message)s',
+        '[%(levelname)s][%(asctime)s]%(message)s',
+        # '[%(levelname)s][%(asctime)s][%(filename)s:%(lineno)s]%(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 

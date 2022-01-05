@@ -1,4 +1,5 @@
 ERROR_LEVEL_DICT = {6: "fatal", 5: "critical", 4: "error", 3: "warning", 2: "notice", 1: "none"}
+ERROR_LEVEL_DICT_RE = {'fatal': 6, 'critical': 5, 'error': 4, 'warning': 3, 'notice': 2, 'none': 1}
 
 
 class AntTaskException(Exception):

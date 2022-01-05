@@ -9,39 +9,49 @@ import grpc
 import redis
 
 from ant_task.etcd2grpc import ant_pb2, ant_pb2_grpc, etcd
-from ant_task.exception import AntTaskException
+from ant_task.exception import AntTaskException, ERROR_LEVEL_DICT_RE
 from ant_task.utils import get_server_port, get_server_ip
 
 
-def hahaha():
-    time.sleep(1)
-    return {"name": "zhihu", "value": "adsfasdf"}
-
-
 class AntRpcServer(ant_pb2_grpc.AntRpcServerServicer):
-    def __init__(self, server_url, token_list: list, redis_url):
+    def __init__(self, task_node: dict, server_url, token_list: list, redis_url, log_file):
         self.server_url = server_url
         self.token_list = token_list
+        self.log_file = log_file
         self.redis_client = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
+        self.task_nodes = task_node
 
     def run(self, request, context):
-        request_data = json.loads(request.request_data)
-        print("** start...", request_data, request.token, request.func, request.channel_name, request.dag_name)
         if request.token not in self.token_list:
             return ant_pb2.AntResponse(code="6", msg="无效的token", response_data=None)
         self.token_list.remove(request.token)
+        log = None
         try:
-            result = hahaha()
+            task_dict = json.loads(request.task)
+            task_cls = self.task_nodes.get(task_dict.get("task_name"), None)
+            if not task_cls:
+                return ant_pb2.AntResponse(code="6", msg=f"任务`{task_dict.get('task_name')}`未注册", response_data=None)
+            task = task_cls()
+            task.load(task_dict)
+            task.log_file = self.log_file
+            task.log_key = f"{task_dict.get('task_name')}|{request.token}"
+            task.log_file_end = ".rpc.log"
+            log = task.get_log()
+            log.info(f"[start] {request.request_data} {request.task}")
+            result = task(request.request_data)
             return ant_pb2.AntResponse(code="1", msg=None, response_data=json.dumps(result))
         except AntTaskException as e:
-            return ant_pb2.AntResponse(code=e.level, msg=e.dialect_msg, response_data=json.dumps(e.attach_data))
+            return ant_pb2.AntResponse(
+                code=str(ERROR_LEVEL_DICT_RE.get(e.level)), msg=e.dialect_msg,
+                response_data=json.dumps(e.attach_data if e.attach_data else {}))
         except Exception as e:
             return ant_pb2.AntResponse(code="6", msg=str(e), response_data=None)
         finally:
             token = str(uuid.uuid4())
             self.token_list.append(token)
-            print("** end...", token)
             self.redis_client.rpush(self.server_url, token)
+            if log:
+                log.info(f"[end]")
 
 
 class RpcEtcdServer(object):
@@ -76,6 +86,8 @@ class RpcEtcdServer(object):
 
 
 async def run_rpc_server(
+        task_node,
+        log_file,
         service_port=8000,
         max_workers=None,
         redis_url="redis://127.0.0.1",
@@ -102,7 +114,8 @@ async def run_rpc_server(
         pool = futures.ThreadPoolExecutor(max_workers=max_workers)
         grpc_server = grpc.server(pool)
         await rs.set_token(pool._max_workers)
-        ant_pb2_grpc.add_AntRpcServerServicer_to_server(AntRpcServer(server_url, rs.token_list, redis_url), grpc_server)
+        ant_pb2_grpc.add_AntRpcServerServicer_to_server(
+            AntRpcServer(task_node, server_url, rs.token_list, redis_url, log_file), grpc_server)
         grpc_server.add_insecure_port(f'[::]:{service_port}')
         grpc_server.start()
         rs.start()

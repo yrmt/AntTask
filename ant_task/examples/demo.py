@@ -22,7 +22,10 @@ class DemoFunc(Task):
         log.info(f"DemoFunc env:{self.env} index:{index}, thread_id:{threading.get_ident()}, process_id:{os.getpid()}")
 
     def param(self):
-        return range(self.env.get("start_index"), self.env.get("end_index"), self.env.get("step_index"))
+        return [
+            {"index": i} for i in
+            range(self.env.get("start_index"), self.env.get("end_index"), self.env.get("step_index"))
+        ]
 
 
 class DemoFunc2(Task):
@@ -30,8 +33,9 @@ class DemoFunc2(Task):
     env = {"sftp_path": 10}
 
     def run(self):
+        log = self.get_log()
         time.sleep(1)
-        print(f"DemoFunc2 env:{self.env}, thread_id:{threading.get_ident()}, process_id:{os.getpid()}")
+        log.info(f"DemoFunc2 env:{self.env}, thread_id:{threading.get_ident()}, process_id:{os.getpid()}")
         raise AntTaskException(level=6, dialect_msg="xixi")
 
 
@@ -40,8 +44,9 @@ class DemoFunc3(Task):
     env = {"http_path": 0}
 
     def run(self):
+        log = self.get_log()
         time.sleep(1)
-        print(f"DemoFunc3 env:{self.env}, thread_id:{threading.get_ident()}, process_id:{os.getpid()}")
+        log.info(f"DemoFunc3 env:{self.env}, thread_id:{threading.get_ident()}, process_id:{os.getpid()}")
 
 
 register = Register()
@@ -50,7 +55,5 @@ register.task([DemoFunc, DemoFunc2, DemoFunc3])  # 注册任务
 Base.metadata.create_all(engine, tables=[m.__table__ for m in [TaskModule]])
 now_day = datetime.datetime.now().strftime("%Y%m%d")
 session = Session()
-# log_db_status = LogDbStatus(session, now_day, log_path="./log", stream=True)
-# log_status = LogStatus(now_day, log_path="./log", stream=True)
 db_status = DBStatus(session, batch_key=now_day)
 register.status([db_status])  # 注册状态控制器

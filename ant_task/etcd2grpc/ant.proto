@@ -5,11 +5,9 @@ service AntRpcServer {
 }
 
 message AntRequest {
-  string func = 1;
+  string task = 1;
   string request_data = 2;
   string token = 3;
-  string channel_name = 4;
-  string dag_name = 5;
 }
 
 message AntResponse {

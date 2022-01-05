@@ -17,7 +17,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
     syntax='proto3',
     serialized_options=None,
     create_key=_descriptor._internal_create_key,
-    serialized_pb=b'\n\tant.proto\"g\n\nAntRequest\x12\x0c\n\x04\x66unc\x18\x01 \x01(\t\x12\x14\n\x0crequest_data\x18\x02 \x01(\t\x12\r\n\x05token\x18\x03 \x01(\t\x12\x14\n\x0c\x63hannel_name\x18\x04 \x01(\t\x12\x10\n\x08\x64\x61g_name\x18\x05 \x01(\t\"?\n\x0b\x41ntResponse\x12\x0c\n\x04\x63ode\x18\x01 \x01(\t\x12\x0b\n\x03msg\x18\x02 \x01(\t\x12\x15\n\rresponse_data\x18\x03 \x01(\t22\n\x0c\x41ntRpcServer\x12\"\n\x03run\x12\x0b.AntRequest\x1a\x0c.AntResponse\"\x00\x62\x06proto3'
+    serialized_pb=b'\n\tant.proto\"?\n\nAntRequest\x12\x0c\n\x04task\x18\x01 \x01(\t\x12\x14\n\x0crequest_data\x18\x02 \x01(\t\x12\r\n\x05token\x18\x03 \x01(\t\"?\n\x0b\x41ntResponse\x12\x0c\n\x04\x63ode\x18\x01 \x01(\t\x12\x0b\n\x03msg\x18\x02 \x01(\t\x12\x15\n\rresponse_data\x18\x03 \x01(\t22\n\x0c\x41ntRpcServer\x12\"\n\x03run\x12\x0b.AntRequest\x1a\x0c.AntResponse\"\x00\x62\x06proto3'
 )
 
 _ANTREQUEST = _descriptor.Descriptor(
@@ -29,7 +29,7 @@ _ANTREQUEST = _descriptor.Descriptor(
     create_key=_descriptor._internal_create_key,
     fields=[
         _descriptor.FieldDescriptor(
-            name='func', full_name='AntRequest.func', index=0,
+            name='task', full_name='AntRequest.task', index=0,
             number=1, type=9, cpp_type=9, label=1,
             has_default_value=False, default_value=b"".decode('utf-8'),
             message_type=None, enum_type=None, containing_type=None,
@@ -49,20 +49,6 @@ _ANTREQUEST = _descriptor.Descriptor(
             message_type=None, enum_type=None, containing_type=None,
             is_extension=False, extension_scope=None,
             serialized_options=None, file=DESCRIPTOR, create_key=_descriptor._internal_create_key),
-        _descriptor.FieldDescriptor(
-            name='channel_name', full_name='AntRequest.channel_name', index=3,
-            number=4, type=9, cpp_type=9, label=1,
-            has_default_value=False, default_value=b"".decode('utf-8'),
-            message_type=None, enum_type=None, containing_type=None,
-            is_extension=False, extension_scope=None,
-            serialized_options=None, file=DESCRIPTOR, create_key=_descriptor._internal_create_key),
-        _descriptor.FieldDescriptor(
-            name='dag_name', full_name='AntRequest.dag_name', index=4,
-            number=5, type=9, cpp_type=9, label=1,
-            has_default_value=False, default_value=b"".decode('utf-8'),
-            message_type=None, enum_type=None, containing_type=None,
-            is_extension=False, extension_scope=None,
-            serialized_options=None, file=DESCRIPTOR, create_key=_descriptor._internal_create_key),
     ],
     extensions=[
     ],
@@ -76,7 +62,7 @@ _ANTREQUEST = _descriptor.Descriptor(
     oneofs=[
     ],
     serialized_start=13,
-    serialized_end=116,
+    serialized_end=76,
 )
 
 _ANTRESPONSE = _descriptor.Descriptor(
@@ -120,8 +106,8 @@ _ANTRESPONSE = _descriptor.Descriptor(
     extension_ranges=[],
     oneofs=[
     ],
-    serialized_start=118,
-    serialized_end=181,
+    serialized_start=78,
+    serialized_end=141,
 )
 
 DESCRIPTOR.message_types_by_name['AntRequest'] = _ANTREQUEST
@@ -149,8 +135,8 @@ _ANTRPCSERVER = _descriptor.ServiceDescriptor(
     index=0,
     serialized_options=None,
     create_key=_descriptor._internal_create_key,
-    serialized_start=183,
-    serialized_end=233,
+    serialized_start=143,
+    serialized_end=193,
     methods=[
         _descriptor.MethodDescriptor(
             name='run',

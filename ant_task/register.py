@@ -5,7 +5,6 @@ from ant_task.status import Status
 
 class Register(object):
     task_node = {}
-    check_node = {}
     status_node = {}
 
     def _task_one(self, task_class):

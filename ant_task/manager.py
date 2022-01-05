@@ -47,7 +47,8 @@ class TaskManger(object):
             raise AntTaskException(level=6, dialect_msg=f"运行类型无`{run_type}`此方法")
 
     def dag_runner(self, dag: Dag):
-        log = self._mlog.get_log({"dag": dag.dag_name, "channel": dag.channel_name})
+        log_key = f"{dag.dag_name}|{dag.channel_name}" + f"|{dag.status.key()}" if dag.status.key() else ""
+        log = self._mlog.get_log({"log_key": log_key})
         dag.status.set_some(dag.dag_name, dag.channel_name, log, dag.run_type)
         dag.status.dag_init(dag)
         dag_run_status = dag.status.dag_start()
